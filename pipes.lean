@@ -97,7 +97,8 @@ begin
   induction p₀,
   { refl },
   { simp [app,ih_1], },
-  { simp [app], }
+  { simp [app], admit },
+  { admit }
 end
 
 end
