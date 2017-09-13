@@ -20,7 +20,7 @@ lemma functor.map_comp' {f : Type u → Type v} [functor f] {α β γ : Type u}
 by { apply funext, intro, apply functor.map_comp }
 
 def event.map {α β} (f : α → β) (e : event α) : event β :=
-⟨ λ i, option_map f (e.get i) ⟩
+⟨ λ i, option.map f (e.get i) ⟩
 
 instance : functor event :=
  { map := λ α β f, event.mk ∘ function.comp (map f) ∘ event.get
@@ -47,7 +47,7 @@ def behavior.map (f : α → β) (b : behavior α) : behavior β :=
 ⟨ λ i, f $ b.get i ⟩
 
 def apply (b : behavior (α → β)) (e : event α) : event β :=
-⟨ λ i, option_map (b.get i) (e.get i) ⟩
+⟨ λ i, option.map (b.get i) (e.get i) ⟩
 
 infix ` <@> `:99 := apply
 
@@ -56,9 +56,9 @@ notation x` <@ `:99 y:98 := (function.const _ <$> x) <@> y
 def union_with' (f : α → γ) (g : β → γ) (h : α → β → γ)
   (e₀ : event α) (e₁ : event β)
 : event γ :=
-⟨ λ i, option_bind (e₀.get i) ((λ f, option_map f $ e₁.get i) ∘ h) <|>
-       option_map f (e₀.get i) <|>
-       option_map g (e₁.get i) ⟩
+⟨ λ i, option.bind (e₀.get i) ((λ f, option.map f $ e₁.get i) ∘ h) <|>
+       option.map f (e₀.get i) <|>
+       option.map g (e₁.get i) ⟩
 
 def union_with (f : α → α → α)
 : event α → event α → event α :=
