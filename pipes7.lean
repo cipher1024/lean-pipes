@@ -36,9 +36,9 @@ coind.cofix (@proxy₂ x x' y y' m α)
 
 namespace proxy
 section proxy
-parameters {γ x x' y y' : Type u}
+parameters {x x' y y' : Type u}
 parameters {m : Type u → Type v}
-variables {α β : Type u}
+variables {α β γ : Type u}
 
 open nat
 
@@ -120,6 +120,48 @@ protected def bind : proxy x x' y y' m β :=
 coind.corec (bind_aux f) (sum.inl cmd)
 
 end bind
+
+instance : has_pure (proxy x x' y y' m) :=
+⟨ @proxy.return ⟩
+
+instance : has_bind (proxy x x' y y' m) :=
+⟨ @proxy.bind ⟩
+
+section
+variables (z : proxy x x' y y' m α)
+
+protected lemma id_map
+: z >>= (pure ∘ id) = z :=
+sorry
+
+end
+
+section
+variables (z : α)
+variables (f : α → proxy x x' y y' m β)
+
+protected lemma pure_bind
+: pure z >>= f = f z :=
+sorry
+end
+
+section
+variables (z : proxy x x' y y' m α)
+variables (f : α → proxy x x' y y' m β)
+variables (g : β → proxy x x' y y' m γ)
+
+protected lemma bind_assoc
+: z >>= f >>= g = z >>= (λ i, f i >>= g) :=
+sorry
+
+end
+
+instance : monad (proxy x x' y y' m) :=
+{ bind := @proxy.bind
+, pure := @proxy.return
+, id_map := @proxy.id_map
+, pure_bind := @proxy.pure_bind
+, bind_assoc := @proxy.bind_assoc }
 
 end proxy
 
