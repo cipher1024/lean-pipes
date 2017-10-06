@@ -101,20 +101,23 @@ variables (f : α → proxy x x' y y' m β)
 
 def state (α β : Type*) := proxy x x' y y' m α ⊕ proxy x x' y y' m β
 
+def t (α β) := (Σ (y_1 : proxy₁ x x' y y' m β), proxy₂ y_1 → state α β)
+
+def bind_aux' : Π (i : proxy₁ x x' y y' m α),
+    (proxy₂ i → proxy x x' y y' m α) →
+    t α β
+ | (proxy₁.action m) xs := ⟨ proxy₁.action m, sum.inl ∘ xs⟩
+ | (proxy₁.ret r) xs := ⟨ coind.head (f r), sum.inr ∘ coind.children (f r) ⟩
+ | (proxy₁.await x) xs := ⟨ proxy₁.await x, sum.inl ∘ xs⟩
+ | (proxy₁.yield x) xs := ⟨ proxy₁.yield x, sum.inl ∘ xs⟩
+ | (proxy₁.think) xs := ⟨ proxy₁.think, sum.inl ∘ xs⟩
+
 def bind_aux
-: state α β →
-  (Σ (y_1 : proxy₁ x x' y y' m β), proxy₂ y_1 → state α β)
+: state α β → t α β
 | (sum.inl param) :=
-coind.cases_on param $ λ x xs,
-match x, xs with
- | (proxy₁.action m), xs := ⟨ proxy₁.action m, sum.inl ∘ xs⟩
- | (proxy₁.ret r), xs := ⟨ coind.index (f r), sum.inr ∘ coind.children (f r) ⟩
- | (proxy₁.await x), xs := ⟨ proxy₁.await x, sum.inl ∘ xs⟩
- | (proxy₁.yield x), xs := ⟨ proxy₁.yield x, sum.inl ∘ xs⟩
- | (proxy₁.think), xs := ⟨ proxy₁.think, sum.inl ∘ xs⟩
-end
+@coind.cases_on _ _ (λ _, t α β) param (bind_aux' f)
  | (sum.inr param) :=
-⟨ coind.index param, sum.inr ∘ coind.children param ⟩
+⟨ coind.head param, sum.inr ∘ coind.children param ⟩
 
 protected def bind : proxy x x' y y' m β :=
 coind.corec (bind_aux f) (sum.inl cmd)
