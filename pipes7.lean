@@ -137,6 +137,14 @@ protected lemma id_map
 : z >>= (pure ∘ id) = z :=
 sorry
 
+example (p : ℕ → Prop) (h : p 17) : ∃ i, p i :=
+begin
+  split,
+  tactic.swap,
+  abstract hh { exact 17 },
+  apply h,
+end
+
 end
 
 section

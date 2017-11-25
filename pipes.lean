@@ -71,9 +71,9 @@ def dimap {x₀ x₁ x' y₀ y₁ y' m α} (f : x₁ → x₀) (g : y₀ → y�
 def X := empty
 
 def effect := proxy X X X X
-def producer α := proxy X X α unit
-def consumer α := proxy α unit X X
-def pipe α β := proxy α unit β unit
+def producer (α) := proxy X X α unit
+def consumer (α) := proxy α unit X X
+def pipe (α) (β) := proxy α unit β unit
 
 def run {m α} [monad m] : proxy X X X X m α → m α
   | (proxy.ret i) := pure i
