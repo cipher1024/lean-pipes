@@ -5,4 +5,4 @@ lean_version = "master"
 path = "src"
 
 [dependencies]
-mathlib = {git = "https://github.com/cipher1024/mathlib", rev = "91dac6231debca05581017cc93145244843c212a"}
+mathlib = {git = "https://github.com/cipher1024/mathlib", rev = "17dfb6ee096cfc65884f8b2a6a7af8af3211120a"}

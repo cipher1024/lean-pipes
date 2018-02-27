@@ -9,6 +9,7 @@ open nat function
   - [X] corec
   - [ ] main pipe composition
   - [ ] Prove that pipes form a monad
+  - [ ] recursion
   - [ ] stdio
   - [ ] example with IO
   - [ ] Provide utilities
@@ -318,5 +319,5 @@ end seq
 -- protected def yield (i : y) : proxy x x' y punit m punit :=
 -- proxy.respond i
 
-end proxy
+-- end proxy
 end proxy
