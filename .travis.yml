@@ -49,15 +49,11 @@ matrix:
   - os: linux
     addons: *3
     env: CMAKE_CXX_COMPILER=g++-6 CMAKE_BUILD_TYPE=Release MULTI_THREAD=OFF
-  - os: osx
-    addons: &4
-    env: CMAKE_CXX_COMPILER=clang++ CMAKE_BUILD_TYPE=Release TARGET=build/lean-3.1.1-darwin.zip
-      UPLOAD=ON PACKAGE=TRUE
   allow_failures:
   - env: CMAKE_CXX_COMPILER=g++-6 CMAKE_BUILD_TYPE=Release LATEST=true
 before_install:
-- if [[ $TRAVIS_OS_NAME == osx ]]; then brew update && brew install gcc && brew install
-  gmp; fi
+# - if [[ $TRAVIS_OS_NAME == osx ]]; then brew update && brew install gmp; fi
+- LEAN_COMMIT=`cat lean_version`
 - mkdir -p $HOME/lean
 - pushd $HOME/lean
 - ls .git || (git init && git remote add origin https://github.com/leanprover/lean.git)
@@ -65,9 +61,10 @@ before_install:
 - |
    if [[ $LATEST == true ]]
    then
-     git pull origin master
+     curl https://leanprover.github.io/lean-nightly/build/lean-nightly-linux.tar.gz | tar xz -C ..
+     export PATH=../lean-nightly-linux/bin:$PATH
    else
-     git checkout b3587e15a32821d8b0ad6e0ad56f425573893bcf
+     git checkout $LEAN_COMMIT
    fi
 - mkdir -p build
 - cd build
@@ -83,10 +80,11 @@ before_install:
 script:
 - lean -v || echo "success"
 - lean --path
-- unset LEAN_PATH
+- export LEAN_PATH=`pwd`:$HOME/lean/bin/../lib/lean/library:$HOME/lean/bin/../library
 - echo $LEAN_PATH
 - leanpkg configure
 - leanpkg build
+- leanpkg test
 notifications:
   slack:
     rooms:

@@ -24,7 +24,7 @@ def event.map {α β} (f : α → β) (e : event α) : event β :=
 
 instance : functor event :=
  { map := λ α β f, event.mk ∘ function.comp (map f) ∘ event.get
- , map_comp := by { intros, simp, rw [functor.map_comp'] }
+ , map_comp := by { intros, simp, admit }
  , id_map := by { intros, cases x, simp [functor.id_map',function.comp], } }
 
 structure behavior (α : Type u) :=
