@@ -208,17 +208,44 @@ proxy.corec₂
        end )
 (more a) (more b)
 
--- notation `⊗` := punit.star
+notation `⊗` := punit.star
 
 -- not before fix. Look into `computation`
--- def map (f : x → y) : pipe x y m α :=
--- proxy.corec
--- (λ z map u, await ⊗ $ λ i, _)
--- punit.star
+def map (f : x → y) : pipe x y m α :=
+proxy.corec
+(λ z map u, await ⊗ $ λ i, more $ yield (f i) $ λ _, map ⊗)
+punit.star
+
+def mmap (f : x → m y) : pipe x y m α :=
+proxy.corec
+(λ z map u, await ⊗ $ λ i, more $ action y (f i) $ λ r, more $ yield r $ λ _, map ⊗)
+punit.star
+
+def diverge : proxy x x' y y' m α :=
+proxy.corec (λ z diverge _, think $ diverge ⊗) punit.star
+
+def cat : pipe x x m α :=
+map id
 
 -- EXAMPLE HERE
 
 end seq
+
+infixr ` >-> `:70 := seq
+
+section lemmas
+
+parameters {m : Type u → Type v}
+
+variables {x x' y y' z z' α : Type u}
+
+lemma map_seq_map (f : x → y) (g : y → z)
+: map f >-> map g = (proxy.map (g ∘ f) : pipe x z m α) :=
+sorry
+
+lemma mmap_seq_mmap [monad m] (f : x → m y) (g : y → m z)
+: mmap f >-> mmap g = (mmap (λ i, f i >>= g) : pipe x z m α) :=
+sorry
 
 -- protected def return (i : α) : proxy x x' y y' m α :=
 -- coind.corec (λ _, ⟨proxy₁.ret i,empty.rec'⟩) ()
