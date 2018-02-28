@@ -390,4 +390,5 @@ sorry
 -- proxy.respond i
 
 -- end proxy
+end lemmas
 end proxy
