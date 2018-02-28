@@ -39,7 +39,6 @@ inductive proxy_node
 | await {} : x  → proxy_node
 | think {} : proxy_node
 
-parameters {x x' y y' m}
 -- variables {α}
 
 def proxy_nxt : proxy_node α → Type u
@@ -49,23 +48,51 @@ def proxy_nxt : proxy_node α → Type u
 | (proxy_node.await _) := x'
 | (proxy_node.think) := punit
 
-parameters (x x' y y' m)
 
 def proxy_intl : Type (max u v+1) :=
 cofix (proxy_nxt α)
 
-inductive proxy_v (var : Type (max u v+1)) (α : Type u)
-: Type (max u v+1)
-  | ret {} : α → proxy_v
-  | action {} : ∀ β, m β → (β → var) → proxy_v
-  | yield {}  : y' → (y → var)  → proxy_v
-  | await {} :  x  → (x' → var) → proxy_v
-  | think {} : var → proxy_v
+inductive proxy_v_mut_rec (var : Type (max u v+1)) (α : Type u) : bool → Type (max u v+1)
+  | ret {} : α → proxy_v_mut_rec tt
+  | action {} : ∀ β, m β → (β → proxy_v_mut_rec ff) → proxy_v_mut_rec tt
+  | yield {}  : y' → (y → proxy_v_mut_rec ff)  → proxy_v_mut_rec tt
+  | await {} :  x  → (x' → proxy_v_mut_rec ff) → proxy_v_mut_rec tt
+  | think {} : proxy_v_mut_rec ff → proxy_v_mut_rec tt
+  | hole {} : var → proxy_v_mut_rec ff
+  | more {} : proxy_v_mut_rec tt → proxy_v_mut_rec ff
 
-def proxy  : Type (max u v+1) :=
+abbreviation proxy_v (var α) :=
+proxy_v_mut_rec var α tt
+
+abbreviation proxy_leaf_v (var α) :=
+proxy_v_mut_rec var α ff
+
+abbreviation proxy  : Type (max u v+1) :=
 proxy_v (proxy_intl α) α
 
+abbreviation proxy_leaf  : Type (max u v+1) :=
+proxy_leaf_v (proxy_intl α) α
+
+abbreviation proxy_mut (b : bool) : Type (max u v+1) :=
+proxy_v_mut_rec (proxy_intl α) α b
+
 end
+
+namespace proxy_v
+export proxy_v_mut_rec (ret action yield await think)
+end proxy_v
+
+namespace proxy
+export proxy_v_mut_rec (ret action yield await think)
+end proxy
+
+namespace proxy_leaf_v
+export proxy_v_mut_rec (more hole)
+end proxy_leaf_v
+
+namespace proxy_leaf
+export proxy_v_mut_rec (more hole)
+end proxy_leaf
 
 namespace proxy
 section defs
@@ -82,52 +109,61 @@ parameters {x x' y y' : Type u}
 parameters {m : Type u → Type v}
 variables {α β γ : Type u}
 
-open nat proxy_v
+open nat proxy_v proxy_leaf_v
 
 def empty.rec' : X → α := ulift.rec (empty.rec _)
 
--- equiv
-def to_intl : proxy x x' y y' m α → proxy_intl x x' y y' m α
- | (ret i) := cofix.mk (proxy_node.ret i) empty.rec'
- | (action β cmd f) := cofix.mk (proxy_node.action cmd) f
- | (yield o f) := cofix.mk (proxy_node.yield o) f
- | (await o f) := cofix.mk (proxy_node.await o) f
- | (think cmd) := cofix.mk (proxy_node.think) (λ _, cmd)
+def to_intl : Π {b}, proxy_mut x x' y y' m α b → proxy_intl x x' y y' m α
+ | tt (ret i) := cofix.mk (proxy_node.ret i) empty.rec'
+ | tt (action β cmd f) := cofix.mk (proxy_node.action cmd) (λ i, to_intl (f i))
+ | tt (yield o f) := cofix.mk (proxy_node.yield o) (λ i, to_intl (f i))
+ | tt (await o f) := cofix.mk (proxy_node.await o) (λ i, to_intl (f i))
+ | tt (think cmd) := cofix.mk (proxy_node.think) (λ _, to_intl cmd)
+ | ff (hole x) := x
+ | ff (more t) := to_intl t
 
 def of_intl : proxy_intl x x' y y' m α → proxy x x' y y' m α :=
 cofix.cases $ λ node,
 match node with
  | (proxy_node.ret i) := λ f, ret i
- | (proxy_node.action cmd) := λ f, action _ cmd f
- | (proxy_node.yield o) := λ f, yield o f
- | (proxy_node.await o) := λ f, await o f
- | proxy_node.think := λ f, think (f punit.star)
+ | (proxy_node.action cmd) := λ f, action _ cmd (λ i, hole $ f i)
+ | (proxy_node.yield o) := λ f, yield o (λ i, hole $ f i)
+ | (proxy_node.await o) := λ f, await o (λ i, hole $ f i)
+ | proxy_node.think := λ f, think (hole $ f punit.star)
 end
 
-def proxy_intl_eq_proxy : proxy_intl x x' y y' m α ≃ proxy x x' y y' m α :=
-sorry
 open ulift
 -- corec
 -- #check @cofix.corec
 universes w w'
+
+protected def corec_aux  {S : Type (max u v+1)}
+: proxy_v x x' y y' m S α →
+  Σ i, proxy_nxt x x' y y' m α i → proxy_leaf_v x x' y y' m S α
+| s' :=
+match s' with
+ | (ret i) := ⟨ proxy_node.ret i, empty.rec' ⟩
+ | (action β cmd f) := ⟨ proxy_node.action cmd, f ⟩
+ | (yield o f) := ⟨ proxy_node.yield o, f ⟩
+ | (await o f) := ⟨ proxy_node.await o, f ⟩
+ | (think f) := ⟨ proxy_node.think, λ _, f ⟩
+end
+
 protected def corec {S : Type (max u v+1)}
-  (f : Π z : Type ((max u v)+1), (S → z) → S → proxy_v x x' y y' m z α)
+  (f : Π z : Type ((max u v)+1), (S → proxy_leaf_v x x' y y' m z α) → S → proxy_v x x' y y' m z α)
   (s : S)
 : proxy x x' y y' m α :=
 of_intl $
 cofix.corec
-  (λ s',
-    match f S id s' with
-      | (ret i) := ⟨ proxy_node.ret i, empty.rec' ⟩
-      | (action _ cmd f) := ⟨ proxy_node.action cmd, f ⟩
-      | (yield o f) := ⟨ proxy_node.yield o, f ⟩
-      | (await o f) := ⟨ proxy_node.await o, f ⟩
-      | (think f) := ⟨ proxy_node.think, λ _, f ⟩
-    end )
-  s
+  (λ s' : proxy_leaf_v x x' y y' m S α,
+     match s' with
+      | (hole s') := proxy.corec_aux (f _ hole s')
+      | (more t) := proxy.corec_aux t
+     end )
+  (hole s)
 
 protected def corec₂ {S₀ S₁ : Type (max u v+1)}
-  (f : Π z, (S₀ → S₁ → z) → S₀ → S₁ → proxy_v x x' y y' m z α)
+  (f : Π z, (S₀ → S₁ → proxy_leaf_v x x' y y' m z α) → S₀ → S₁ → proxy_v x x' y y' m z α)
   (s₀ : S₀) (s₁ : S₁)
 : proxy x x' y y' m α :=
 @proxy.corec α (S₀ × S₁) (λ z g s, f z (curry g) s.1 s.2) (s₀, s₁)
@@ -137,33 +173,40 @@ end defs
 -- #check @proxy.corec
 -- #check @proxy.corec₂
 section seq
-open ulift proxy_v
+open ulift proxy_v proxy_leaf_v
 parameters {m : Type u → Type v}
 
 variables {x x' y y' z z' α : Type u}
+
+def of_leaf : proxy_leaf x x' y y' m α → proxy x x' y y' m α
+ | (hole x) := of_intl x
+ | (more x) := x
+
 def seq
 : proxy x x' y y' m α →
   proxy y y' z z' m α →
   proxy x x' z z' m α :=
+λ a b,
 proxy.corec₂
-  (λ k (seq : proxy x x' y y' m α →
-              proxy y y' z z' m α →
-              k)
+  (λ k (seq : proxy_leaf x x' y y' m α →
+              proxy_leaf y y' z z' m α →
+              proxy_leaf_v x x' z z' m k α)
        a b,
-       match (a : proxy x x' y y' m α) with
+       match of_leaf a with
          | (ret i) := ret i
-         | (action β cmd f) := action β cmd (λ i, seq (of_intl (f i)) b)
+         | (action β cmd f) := action β cmd (λ i, seq (f i) b)
          | (yield o f) :=
-           match b with
+           match of_leaf b with
             | (ret i') := ret i'
-            | (action β' cmd' f') := action β' cmd' $ λ i, seq a (of_intl $ f' i)
-            | (yield o' f') := yield o' $ λ i, seq a (of_intl $ f' i)
-            | (await o' f') := think $ seq (of_intl $ f o') (of_intl $ f' o)
-            | (think f) := think $ seq a (of_intl f)
+            | (action β' cmd' f') := action β' cmd' $ λ i, seq a (f' i)
+            | (yield o' f') := yield o' $ λ i, seq a (f' i)
+            | (await o' f') := think $ seq (f o') (f' o)
+            | (think f) := think $ seq a f
            end
-         | (await o f) := await o $ λ i, seq (of_intl (f i)) b
-         | (think f) := think $ seq (of_intl f) b
+         | (await o f) := await o $ λ i, seq (f i) b
+         | (think f) := think $ seq f b
        end )
+(more a) (more b)
 
 -- notation `⊗` := punit.star
 
