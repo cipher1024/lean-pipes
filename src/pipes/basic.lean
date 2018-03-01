@@ -3,7 +3,7 @@ import data.coinductive
 
 import .tactic
 
-universes u v
+universes u v w
 local prefix `♯`:0 := cast (by simp [*] <|> cc <|> solve_by_elim)
 
 open nat function
@@ -55,7 +55,7 @@ def proxy_nxt : proxy_node α → Type u
 def proxy : Type (max u v+1) :=
 cofix (proxy_nxt α)
 
-inductive proxy_v_mut_rec (var : Type (max u v+1)) (α : Type u) : bool → Type (max u v+1)
+inductive proxy_v_mut_rec (var : Type w) (α : Type u) : bool → Type (max (u+1) v w)
   | ret {} : α → proxy_v_mut_rec tt
   | action {} : ∀ β, m β → (β → proxy_v_mut_rec ff) → proxy_v_mut_rec tt
   | yield {}  : y' → (y → proxy_v_mut_rec ff)  → proxy_v_mut_rec tt
@@ -174,9 +174,9 @@ sorry
 open ulift
 -- corec
 -- #check @cofix.corec
-universes w w'
+universes w'
 
-protected def corec_aux  {S : Type (max u v+1)}
+protected def corec_aux  {S : Type w}
 : proxy_v x x' y y' m S α →
   Σ i, proxy_nxt x x' y y' m α i → proxy_leaf_v x x' y y' m S α
  | (ret i) := ⟨ proxy_node.ret i, empty.rec' ⟩
@@ -266,8 +266,8 @@ begin
     intro, apply Hrefl, },
 end
 
-protected def corec {S : Type (max u v+1)}
-  (f : Π z : Type ((max u v)+1), (S → proxy_leaf_v x x' y y' m z α) → S → proxy_v x x' y y' m z α)
+protected def corec {S : Type w}
+  (f : Π z : Type w, (S → proxy_leaf_v x x' y y' m z α) → S → proxy_v x x' y y' m z α)
   (s : S)
 : proxy x x' y y' m α :=
 cofix.corec
@@ -278,7 +278,7 @@ cofix.corec
      end )
   (hole s)
 
-protected def corec₂ {S₀ S₁ : Type (max u v+1)}
+protected def corec₂ {S₀ : Type w} {S₁ : Type w'}
   (f : Π z, (S₀ → S₁ → proxy_leaf_v x x' y y' m z α) → S₀ → S₁ → proxy_v x x' y y' m z α)
   (s₀ : S₀) (s₁ : S₁)
 : proxy x x' y y' m α :=
@@ -353,15 +353,14 @@ proxy.corec
   (λ z const _, yield i $ λ _, const ⊗)
 ⊗
 
-def of_list (xs : list y) : producer y m punit :=
+def of_list : list y → producer y m punit :=
 proxy.corec
   (λ z of_list
-     (xs : ulift.{max u v+1} $ list y),
-     match down xs with
-      | i::xs := yield i $ λ _, of_list (up xs)
+     (xs : list y),
+     match xs with
+      | i::xs := yield i $ λ _, of_list xs
       | [] := ret ⊗
      end)
-(up xs)
 
 def diverge : proxy x x' y y' m α :=
 proxy.corec (λ z diverge _, think $ diverge ⊗) punit.star
@@ -390,6 +389,20 @@ section lemmas
 parameters {m : Type u → Type v}
 
 variables {x x' y y' z z' α : Type u}
+open cofix
+
+lemma cat_seq (p : pipe x y m α)
+: cat >-> p = p := sorry
+
+lemma seq_cat (p : pipe x y m α)
+: p >-> cat = p := sorry
+
+lemma const_map (a : x) (f : x → y)
+: const a >-> map f = (const (f a) : producer y m α) :=
+sorry
+
+lemma of_list_map (xs : list x) (f : x → y)
+: of_list xs >-> map f = (of_list (xs.map f) : producer y m punit) := sorry
 
 lemma map_seq_map (f : x → y) (g : y → z)
 : map f >-> map g = (proxy.map (g ∘ f) : pipe x z m α) :=
