@@ -8,7 +8,6 @@ all:
 
 clean:
 	/usr/bin/find . -name "*.olean" -delete
-	rm -rf _target
 
 lines:
 	wc `git ls-files | grep .lean`

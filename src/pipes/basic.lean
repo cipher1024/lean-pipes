@@ -1,7 +1,10 @@
 
 import data.coinductive
 
+import .tactic
+
 universes u v
+local prefix `♯`:0 := cast (by simp [*] <|> cc <|> solve_by_elim)
 
 open nat function
 
@@ -49,7 +52,7 @@ def proxy_nxt : proxy_node α → Type u
 | (proxy_node.think) := punit
 
 
-def proxy_intl : Type (max u v+1) :=
+def proxy : Type (max u v+1) :=
 cofix (proxy_nxt α)
 
 inductive proxy_v_mut_rec (var : Type (max u v+1)) (α : Type u) : bool → Type (max u v+1)
@@ -67,14 +70,14 @@ proxy_v_mut_rec var α tt
 abbreviation proxy_leaf_v (var α) :=
 proxy_v_mut_rec var α ff
 
-abbreviation proxy  : Type (max u v+1) :=
-proxy_v (proxy_intl α) α
+abbreviation proxy_cons : Type (max u v+1) :=
+proxy_v (proxy α) α
 
 abbreviation proxy_leaf  : Type (max u v+1) :=
-proxy_leaf_v (proxy_intl α) α
+proxy_leaf_v (proxy α) α
 
 abbreviation proxy_mut (b : bool) : Type (max u v+1) :=
-proxy_v_mut_rec (proxy_intl α) α b
+proxy_v_mut_rec (proxy α) α b
 
 end
 
@@ -111,18 +114,20 @@ variables {α β γ : Type u}
 
 open nat proxy_v proxy_leaf_v
 
-def empty.rec' : X → α := ulift.rec (empty.rec _)
+def empty.rec' {α : Sort*} : X → α := ulift.rec (empty.rec _)
 
-def to_intl : Π {b}, proxy_mut x x' y y' m α b → proxy_intl x x' y y' m α
+notation `⊗` := punit.star
+
+def of_cons : Π {b}, proxy_mut x x' y y' m α b → proxy x x' y y' m α
  | tt (ret i) := cofix.mk (proxy_node.ret i) empty.rec'
- | tt (action β cmd f) := cofix.mk (proxy_node.action cmd) (λ i, to_intl (f i))
- | tt (yield o f) := cofix.mk (proxy_node.yield o) (λ i, to_intl (f i))
- | tt (await o f) := cofix.mk (proxy_node.await o) (λ i, to_intl (f i))
- | tt (think cmd) := cofix.mk (proxy_node.think) (λ _, to_intl cmd)
+ | tt (action β cmd f) := cofix.mk (proxy_node.action cmd) (λ i, of_cons (f i))
+ | tt (yield o f) := cofix.mk (proxy_node.yield o) (λ i, of_cons (f i))
+ | tt (await o f) := cofix.mk (proxy_node.await o) (λ i, of_cons (f i))
+ | tt (think cmd) := cofix.mk (proxy_node.think) (λ _, of_cons cmd)
  | ff (hole x) := x
- | ff (more t) := to_intl t
+ | ff (more t) := of_cons t
 
-def of_intl : proxy_intl x x' y y' m α → proxy x x' y y' m α :=
+def to_cons : proxy x x' y y' m α → proxy_cons x x' y y' m α :=
 cofix.cases $ λ node,
 match node with
  | (proxy_node.ret i) := λ f, ret i
@@ -132,6 +137,40 @@ match node with
  | proxy_node.think := λ f, think (hole $ f punit.star)
 end
 
+@[simp]
+lemma to_cons_mk_ret
+  (r : α)
+  (ch : ulift empty → cofix (proxy_nxt x x' y y' m α))
+: to_cons (cofix.mk (proxy_node.ret r) ch) = ret r :=
+sorry
+
+@[simp]
+lemma to_cons_mk_action {β}
+  (cmd : m β)
+  (ch : β → cofix (proxy_nxt x x' y y' m α))
+: to_cons (cofix.mk (proxy_node.action cmd) ch) = action β cmd (λ i, hole $ ch i) :=
+sorry
+
+@[simp]
+lemma to_cons_mk_yield
+  (o : y')
+  (ch : y → cofix (proxy_nxt x x' y y' m α))
+: to_cons (cofix.mk (proxy_node.yield o) ch) = yield o (λ i, hole $ ch i) :=
+sorry
+
+@[simp]
+lemma to_cons_mk_await
+  (o : x)
+  (ch : x' → cofix (proxy_nxt x x' y y' m α))
+: to_cons (cofix.mk (proxy_node.await o) ch) = await o (λ i, hole $ ch i) :=
+sorry
+
+@[simp]
+lemma to_cons_mk_think
+  (ch : punit → cofix (proxy_nxt x x' y y' m α))
+: to_cons (cofix.mk proxy_node.think ch) = think (hole $ ch ⊗) :=
+sorry
+
 open ulift
 -- corec
 -- #check @cofix.corec
@@ -140,20 +179,97 @@ universes w w'
 protected def corec_aux  {S : Type (max u v+1)}
 : proxy_v x x' y y' m S α →
   Σ i, proxy_nxt x x' y y' m α i → proxy_leaf_v x x' y y' m S α
-| s' :=
-match s' with
  | (ret i) := ⟨ proxy_node.ret i, empty.rec' ⟩
  | (action β cmd f) := ⟨ proxy_node.action cmd, f ⟩
  | (yield o f) := ⟨ proxy_node.yield o, f ⟩
  | (await o f) := ⟨ proxy_node.await o, f ⟩
  | (think f) := ⟨ proxy_node.think, λ _, f ⟩
+
+open cofix
+
+protected def head : proxy_cons x x' y y' m α → proxy_node x y' m α
+ | (ret i) := proxy_node.ret i
+ | (action β m f) := proxy_node.action m
+ | (yield o f) := proxy_node.yield o
+ | (await o f) := proxy_node.await o
+ | (think f) := proxy_node.think
+
+protected def children
+: Π c : proxy_cons x x' y y' m α, proxy_nxt x x' y y' m α (head c) → proxy x x' y y' m α
+ | (ret i) := empty.rec'
+ | (action β m f) := of_cons ∘ f
+ | (yield o f) := of_cons ∘ f
+ | (await o f) := of_cons ∘ f
+ | (think f) := λ _, of_cons f
+
+lemma head_to_cons (p : proxy x x' y y' m α)
+: proxy.head (to_cons p) = cofix.head p :=
+by { co_cases p ; cases i ;
+     simp [to_cons,proxy.head], }
+
+lemma children_to_cons (p : proxy x x' y y' m α)
+  (i)
+: proxy.children (to_cons p) (cast (by simp [head_to_cons]) i) = cofix.children p i :=
+sorry
+
+lemma of_cons_to_cons (p : proxy x x' y y' m α)
+: of_cons (to_cons p) = p :=
+sorry
+
+inductive proxy_eq : proxy_cons x x' y y' m α → proxy_cons x x' y y' m α → Prop
+ | ret (i : α) : proxy_eq (ret i) (ret i)
+ | act (β cmd) (f f' : β → proxy_cons x x' y y' m α)
+       (step : ∀ (FR : proxy_cons x x' y y' m α → proxy_cons x x' y y' m α → Prop),
+                    reflexive FR →
+                    FR (action β cmd (more ∘ f)) (action β cmd (more ∘ f')) →
+                    ∀ i, FR (f i) (f' i)) :
+   proxy_eq (action β cmd (more ∘ f)) (action β cmd (more ∘ f'))
+ | yield (o f f')
+       (step : ∀ (FR : proxy_cons x x' y y' m α → proxy_cons x x' y y' m α → Prop),
+                    reflexive FR →
+                    FR (yield o (more ∘ f)) (yield o (more ∘ f')) →
+                    ∀ i, FR (f i) (f' i)) :
+   proxy_eq (yield o $ more ∘ f) (yield o $ more ∘ f')
+ | await (o f f')
+       (step : ∀ (FR : proxy_cons x x' y y' m α → proxy_cons x x' y y' m α → Prop),
+                    reflexive FR →
+                    FR (await o (more ∘ f)) (await o (more ∘ f')) →
+                    ∀ i, FR (f i) (f' i)) :
+   proxy_eq (await o $ more ∘ f) (await o $ more ∘ f')
+ | think (f f')
+       (step : ∀ (FR : proxy_cons x x' y y' m α → proxy_cons x x' y y' m α → Prop),
+                    reflexive FR →
+                    FR (think (more f)) (think (more f')) →
+                    FR f f') :
+   proxy_eq (think $ more f) (think $ more f')
+
+protected lemma coinduction_eq (p₀ p₁ : proxy x x' y y' m α)
+  (H : proxy_eq (to_cons p₀) (to_cons p₁))
+: p₀ = p₁ :=
+begin
+  rw [← of_cons_to_cons p₀,← of_cons_to_cons p₁],
+  revert H,
+  generalize : to_cons p₀ = pp₀,
+  generalize : to_cons p₁ = pp₁,
+  intros H,
+  apply cofix.coinduction,
+  cases H ; simp [of_cons],
+  cases H
+  ; introv Hrefl Hfr Hij,
+  { apply empty.rec' i, },
+  repeat
+  { revert i j,
+    rw [of_cons,children_mk,of_cons,children_mk],
+    simp [proxy_nxt,head_mk,of_cons], intros,
+    simp [of_cons] at Hfr, subst i,
+    apply H_step (λ a b, FR (of_cons a) (of_cons b)) _ Hfr,
+    intro, apply Hrefl, },
 end
 
 protected def corec {S : Type (max u v+1)}
   (f : Π z : Type ((max u v)+1), (S → proxy_leaf_v x x' y y' m z α) → S → proxy_v x x' y y' m z α)
   (s : S)
 : proxy x x' y y' m α :=
-of_intl $
 cofix.corec
   (λ s' : proxy_leaf_v x x' y y' m S α,
      match s' with
@@ -169,48 +285,87 @@ protected def corec₂ {S₀ S₁ : Type (max u v+1)}
 @proxy.corec α (S₀ × S₁) (λ z g s, f z (curry g) s.1 s.2) (s₀, s₁)
 
 end defs
--- #check @cofix.corec
--- #check @proxy.corec
--- #check @proxy.corec₂
+
 section seq
 open ulift proxy_v proxy_leaf_v
 parameters {m : Type u → Type v}
 
 variables {x x' y y' z z' α : Type u}
 
-def of_leaf : proxy_leaf x x' y y' m α → proxy x x' y y' m α
- | (hole x) := of_intl x
+def of_leaf : proxy_leaf x x' y y' m α → proxy_cons x x' y y' m α
+ | (hole x) := to_cons x
  | (more x) := x
 
-def seq
+def seq_push
 : proxy x x' y y' m α →
   proxy y y' z z' m α →
   proxy x x' z z' m α :=
 λ a b,
 proxy.corec₂
-  (λ k (seq : proxy_leaf x x' y y' m α →
-              proxy_leaf y y' z z' m α →
-              proxy_leaf_v x x' z z' m k α)
+  (λ k (seq_push : proxy_leaf x x' y y' m α →
+                   proxy_leaf y y' z z' m α →
+                   proxy_leaf_v x x' z z' m k α)
        a b,
        match of_leaf a with
          | (ret i) := ret i
-         | (action β cmd f) := action β cmd (λ i, seq (f i) b)
+         | (action β cmd f) := action β cmd (λ i, seq_push (f i) b)
          | (yield o f) :=
            match of_leaf b with
             | (ret i') := ret i'
-            | (action β' cmd' f') := action β' cmd' $ λ i, seq a (f' i)
-            | (yield o' f') := yield o' $ λ i, seq a (f' i)
-            | (await o' f') := think $ seq (f o') (f' o)
-            | (think f) := think $ seq a f
+            | (action β' cmd' f') := action β' cmd' $ λ i, seq_push a (f' i)
+            | (yield o' f') := yield o' $ λ i, seq_push a (f' i)
+            | (await o' f') := think $ seq_push (f o') (f' o)
+            | (think f) := think $ seq_push a f
            end
-         | (await o f) := await o $ λ i, seq (f i) b
-         | (think f) := think $ seq f b
+         | (await o f) := await o $ λ i, seq_push (f i) b
+         | (think f) := think $ seq_push f b
        end )
-(more a) (more b)
+(hole a) (hole b)
 
-notation `⊗` := punit.star
+def seq_pull
+: proxy x x' y y' m α →
+  proxy y y' z z' m α →
+  proxy x x' z z' m α :=
+λ a b,
+proxy.corec₂
+  (λ k (seq_pull : proxy_leaf x x' y y' m α →
+                   proxy_leaf y y' z z' m α →
+                   proxy_leaf_v x x' z z' m k α)
+       a b,
+       match of_leaf b with
+         | (ret i) := ret i
+         | (action β cmd f) := action β cmd (λ i, seq_pull a (f i))
+         | (await o f) :=
+           match of_leaf a with
+            | (ret i') := ret i'
+            | (action β' cmd' f') := action β' cmd' $ λ i, seq_pull (f' i) b
+            | (await o' f') := await o' $ λ i, seq_pull (f' i) b
+            | (yield o' f') := think $ seq_pull (f' o) (f o')
+            | (think f) := think $ seq_pull f b
+           end
+         | (yield o f) := yield o $ λ i, seq_pull a (f i)
+         | (think f) := think $ seq_pull a f
+       end )
+(hole a) (hole b)
 
--- not before fix. Look into `computation`
+def const (i : y) : producer y m α :=
+proxy.corec
+  (λ z const _, yield i $ λ _, const ⊗)
+⊗
+
+def of_list (xs : list y) : producer y m punit :=
+proxy.corec
+  (λ z of_list
+     (xs : ulift.{max u v+1} $ list y),
+     match down xs with
+      | i::xs := yield i $ λ _, of_list (up xs)
+      | [] := ret ⊗
+     end)
+(up xs)
+
+def diverge : proxy x x' y y' m α :=
+proxy.corec (λ z diverge _, think $ diverge ⊗) punit.star
+
 def map (f : x → y) : pipe x y m α :=
 proxy.corec
 (λ z map u, await ⊗ $ λ i, more $ yield (f i) $ λ _, map ⊗)
@@ -221,9 +376,6 @@ proxy.corec
 (λ z map u, await ⊗ $ λ i, more $ action y (f i) $ λ r, more $ yield r $ λ _, map ⊗)
 punit.star
 
-def diverge : proxy x x' y y' m α :=
-proxy.corec (λ z diverge _, think $ diverge ⊗) punit.star
-
 def cat : pipe x x m α :=
 map id
 
@@ -231,7 +383,7 @@ map id
 
 end seq
 
-infixr ` >-> `:70 := seq
+infixr ` >-> `:70 := seq_pull
 
 section lemmas
 
@@ -247,7 +399,7 @@ lemma mmap_seq_mmap [monad m] (f : x → m y) (g : y → m z)
 : mmap f >-> mmap g = (mmap (λ i, f i >>= g) : pipe x z m α) :=
 sorry
 
--- protected def return (i : α) : proxy x x' y y' m α :=
+-- protected def return (i : α) : proxy_cons x x' y y' m α :=
 -- coind.corec (λ _, ⟨proxy₁.ret i,empty.rec'⟩) ()
 
 -- section atomic
