@@ -1,8 +1,8 @@
 [package]
 name = "pipes"
 version = "0.1"
-lean_version = "master"
+lean_version = "nightly-2018-04-06"
 path = "src"
 
 [dependencies]
-mathlib = {git = "https://github.com/cipher1024/mathlib", rev = "6c317ff61302961a21d627fca014d12f30fd68a0"}
+mathlib = {git = "https://github.com/leanprover/mathlib", rev = "f0bcba56f90e5a26fcb537988224a43170942ae8"}
